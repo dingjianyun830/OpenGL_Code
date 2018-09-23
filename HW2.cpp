@@ -1,4 +1,4 @@
-// This code is the homework1 of course EE7755
+// This code is the homework2 of course EE7755
 // Author: Yuqi Ding(yding18@lsu.edu)
 
 #include <iostream>
@@ -7,14 +7,20 @@
 #include <iterator>
 #include <stdlib.h>
 #include <vector>
-#include <GL/glut.h>
+#include <GL\glut.h>
 #include "Mesh.h"
 #include "Iterators.h"
 
 using namespace std;
 
 Mesh *cMesh = new Mesh();
-vector<Point> cNormal;
+vector<Point> cNormalFace;
+vector<Point> cNormalVertex;
+vector<double> cGaussCurv;
+vector<int> LocalMaxGC;
+vector<int> LocalMinGC;
+vector<int> ShapeEdge;
+#define PI 3.1415926
 
 float x_BCenter = 0.0f;
 float y_BCenter = 0.0f;
@@ -40,7 +46,7 @@ bool ComputeBoundingBox()
 	for (MeshVertexIterator vit(cMesh); !vit.end(); ++vit)
 	{
 		Vertex *ver = *vit;
-		
+
 		if (ver->point()[0] >= xMax)
 		{
 			xMax = ver->point()[0];
@@ -75,7 +81,6 @@ bool ComputeBoundingBox()
 		sumY += ver->point()[1];
 		sumZ += ver->point()[2];
 	}
-
 
 	x_BCenter = sumX / cMesh->numVertices();
 	y_BCenter = sumY / cMesh->numVertices();
@@ -118,13 +123,158 @@ void ComputerFaceNormal()
 	for (MeshFaceIterator fit(cMesh); !fit.end(); ++fit)
 	{
 		Face *f = *fit;
+		//cout << f->index() << endl;
 		Halfedge * he1 = f->he(); // one halfedge
 		Halfedge * he2 = he1->next(); // its next halfedge inside this face
 		Point & pt1 = he1->source()->point();
 		Point & pt2 = he1->target()->point();
 		Point & pt3 = he2->target()->point();
-		cNormal.push_back((pt2 - pt1) ^ (pt3 - pt1));
+		Point pt = (pt2 - pt1) ^ (pt3 - pt1);
+		pt = pt / pt.norm();
+		// add the face normal vector
+		cNormalFace.push_back(pt);
 	}
+}
+
+void ComputeVertexNormal()
+{
+	for (MeshVertexIterator vit(cMesh); !vit.end(); ++vit)
+	{
+		Vertex *ver = *vit;
+		//cout<<ver->index()<<endl;
+		Point cNormalV(0, 0, 0);
+		double sumAngles = 0;
+		for (VertexOutHalfedgeIterator vheit(ver); !vheit.end(); ++vheit)
+		{
+			// select the two halfedges
+			Halfedge *he = *vheit;
+			Halfedge *he1 = he->prev();
+
+			// select 3 points, p1 is the current vertex
+			Point & p0 = he1->source()->point();
+			Point & p1 = he->source()->point();
+			Point & p2 = he->target()->point();
+
+			// compute the incident angle as weight
+			double a = (p0 - p1).norm();
+			double b = (p2 - p1).norm();
+			double cAngles = acos(((p0-p1)*(p2-p1)) / (a * b));
+			sumAngles += cAngles;
+
+			// select the face normal vector
+			int FaceIndex = he->face()->index();
+			Point pt1 = cNormalFace[FaceIndex];
+			pt1 *= cAngles;
+			cNormalV += pt1;
+		}
+		cNormalV = cNormalV / sumAngles;
+		// add the vertex normal vector
+		cNormalVertex.push_back(cNormalV);
+	}
+}
+
+void ComputeGaussianCurv()
+{
+	for (MeshVertexIterator vit(cMesh); !vit.end(); ++vit)
+	{
+		Vertex *ver = *vit;
+		//cout<<ver->index()<<endl;
+		double GuassCurv = 0;
+		double sumAngles = 0;
+		for (VertexOutHalfedgeIterator vheit(ver); !vheit.end(); ++vheit)
+		{
+			// select the two halfedges
+			Halfedge *he = *vheit;
+			Halfedge *he1 = he->prev();
+
+			// select 3 points, p1 is the current vertex
+			Point & p0 = he1->source()->point();
+			Point & p1 = he->source()->point();
+			Point & p2 = he->target()->point();
+
+			// compute the incident angle as weight
+			double a = (p0 - p1).norm();
+			double b = (p2 - p1).norm();
+			double cAngles = acos(((p0 - p1)*(p2 - p1)) / (a * b));
+			sumAngles += cAngles;
+		}
+		GuassCurv = 2*PI - sumAngles;
+		// add the vertex normal vector
+		cGaussCurv.push_back(GuassCurv);
+	}
+}
+
+void LocalMaxMinGC()
+{
+	for (MeshVertexIterator vit(cMesh); !vit.end(); ++vit)
+	{
+		Vertex *ver1 = *vit;
+		int iMax = ver1->index();
+		int iMin = ver1->index();
+		double vMax = cGaussCurv[iMax];
+		double vMin = cGaussCurv[iMin];
+		vector<int> Index;
+		for (VertexVertexIterator vvit(ver1); !vvit.end(); ++vvit)
+		{
+			Vertex *ver2 = *vvit;
+			for (VertexVertexIterator vvit2(ver2); !vvit2.end(); ++vvit2)
+			{
+				Vertex *ver = *vvit2;
+				Index.push_back(ver->index());
+			}
+		}
+
+		// find the local Max and Min
+		for (int i = 0; i < Index.size(); i++)
+		{
+			if (cGaussCurv[Index[i]] >= vMax)
+			{
+				vMax = cGaussCurv[Index[i]];
+				iMax = Index[i];
+			}
+
+			if (cGaussCurv[Index[i]] <= vMin)
+			{
+				vMin = cGaussCurv[Index[i]];
+				iMin = Index[i];
+			}
+		}
+
+		LocalMaxGC.push_back(iMax);
+		LocalMinGC.push_back(iMin);
+	}
+}
+
+void ComputeShapeEdge()
+{
+	int count = 0;
+	for (MeshEdgeIterator eit(cMesh); !eit.end(); ++eit)
+	{
+		Edge *e = *eit;
+		if (e->boundary())
+		{
+			ShapeEdge.push_back(0);
+		}
+		else
+		{
+			Halfedge *he0 = e->he(0);
+			Halfedge *he1 = e->he(1);
+			//cout << he0->face()->index() << endl;
+			//cout << he1->face()->index() << endl;
+			Point & pt0 = cNormalFace[he0->face()->index()];
+			Point & pt1 = cNormalFace[he1->face()->index()];
+			if (0.5 > pt0*pt1)
+			{
+				ShapeEdge.push_back(1);
+				count++;
+			}
+			else
+			{
+				ShapeEdge.push_back(0);			
+			}
+		}
+	}
+	cout << count << endl;
 }
 /////////////////////////////////////////////////////////////////////////////////
 // rendering code
@@ -167,6 +317,18 @@ void handleKeypress(unsigned char key, int x, int y)
 		break;
 	case 'z':
 		keyControl = 'z';//zoom
+		break;
+	case 'f':
+		keyControl = 'f';//face normal
+		break;
+	case 'v':
+		keyControl = 'v';//vertex normal
+		break;
+	case 'k':
+		keyControl = 'k';//Gaussian Curvature
+		break;
+	case 's':
+		keyControl = 's';//Shape Edge
 		break;
 	case 27: //Escape key
 		exit(0);
@@ -243,7 +405,180 @@ void mouseMove(int x, int y)
 	glutPostRedisplay();
 }
 
+//Begin Mesh
 void Render_Mesh()
+{
+	glBegin(GL_TRIANGLES);
+	for (MeshFaceIterator fit(cMesh); !fit.end(); ++fit)
+	{
+		Face * f = *fit;
+		int ind = f->index();
+		Halfedge *he1 = f->he();
+		Halfedge *he2 = he1->next();
+		Point &pt1 = he1->source()->point();
+		Point &pt2 = he1->target()->point();
+		Point &pt3 = he2->target()->point();
+		int ind1 = he1->source()->index();
+		int ind2 = he1->target()->index();
+		int ind3 = he2->target()->index();
+
+		// point 1
+		glColor3f(1, 1, 1);
+		if (keyControl == 'f')
+		{
+			glNormal3f(cNormalFace[ind].v[0], cNormalFace[ind].v[1], cNormalFace[ind].v[2]);
+		}
+		else if (keyControl == 'v')
+		{
+			glNormal3f(cNormalVertex[ind1].v[0], cNormalFace[ind1].v[1], cNormalFace[ind1].v[2]);
+		}
+		else
+		{		}
+		glVertex3f(pt1.v[0], pt1.v[1], pt1[2]);
+
+		// point 2
+		glColor3f(0.9, 0.9, 0.9);
+		if (keyControl == 'f')
+		{
+			glNormal3f(cNormalFace[ind].v[0], cNormalFace[ind].v[1], cNormalFace[ind].v[2]);
+		}
+		else if (keyControl == 'v')
+		{
+			glNormal3f(cNormalVertex[ind2].v[0], cNormalFace[ind2].v[1], cNormalFace[ind2].v[2]);
+		}
+		else
+		{		}
+		glVertex3f(pt2.v[0], pt2.v[1], pt2[2]);
+
+		// point 3
+		glColor3f(0.8, 0.8, 0.8);
+		if (keyControl == 'f')
+		{
+			glNormal3f(cNormalFace[ind].v[0], cNormalFace[ind].v[1], cNormalFace[ind].v[2]);
+		}
+		else if (keyControl == 'v')
+		{
+			glNormal3f(cNormalVertex[ind3].v[0], cNormalFace[ind3].v[1], cNormalFace[ind3].v[2]);
+		}
+		else
+		{		}
+		glVertex3f(pt3.v[0], pt3.v[1], pt3[2]);
+	}
+	glEnd();
+}
+
+void Render_MeshF()
+{
+	glBegin(GL_TRIANGLES);
+	for (MeshFaceIterator fit(cMesh); !fit.end(); ++fit)
+	{
+		Face * f = *fit;
+		int ind = f->index();
+		Halfedge *he1 = f->he();
+		Halfedge *he2 = he1->next();
+		Point &pt1 = he1->source()->point();
+		Point &pt2 = he1->target()->point();
+		Point &pt3 = he2->target()->point();
+		int ind1 = he1->source()->index();
+		int ind2 = he1->target()->index();
+		int ind3 = he2->target()->index();
+
+		// point 1
+		glColor3f(1, 1, 1);
+		glNormal3f(cNormalFace[ind].v[0], cNormalFace[ind].v[1], cNormalFace[ind].v[2]);
+		glVertex3f(pt1.v[0], pt1.v[1], pt1[2]);
+
+		// point 2
+		glColor3f(0.9, 0.9, 0.9);
+		glNormal3f(cNormalFace[ind].v[0], cNormalFace[ind].v[1], cNormalFace[ind].v[2]);
+		glVertex3f(pt2.v[0], pt2.v[1], pt2[2]);
+
+		// point 3
+		glColor3f(0.8, 0.8, 0.8);
+		glNormal3f(cNormalFace[ind].v[0], cNormalFace[ind].v[1], cNormalFace[ind].v[2]);
+		glVertex3f(pt3.v[0], pt3.v[1], pt3[2]);
+	}
+	glEnd();
+}
+
+void Render_MeshV()
+{
+	glBegin(GL_TRIANGLES);
+	for (MeshFaceIterator fit(cMesh); !fit.end(); ++fit)
+	{
+		Face * f = *fit;
+		int ind = f->index();
+		Halfedge *he1 = f->he();
+		Halfedge *he2 = he1->next();
+		Point &pt1 = he1->source()->point();
+		Point &pt2 = he1->target()->point();
+		Point &pt3 = he2->target()->point();
+		int ind1 = he1->source()->index();
+		int ind2 = he1->target()->index();
+		int ind3 = he2->target()->index();
+
+		// point 1
+		glColor3f(1, 1, 1);
+		glNormal3f(cNormalVertex[ind1].v[0], cNormalFace[ind1].v[1], cNormalFace[ind1].v[2]);
+		glVertex3f(pt1.v[0], pt1.v[1], pt1[2]);
+
+		// point 2
+		glColor3f(0.9, 0.9, 0.9);
+		glNormal3f(cNormalVertex[ind2].v[0], cNormalFace[ind2].v[1], cNormalFace[ind2].v[2]);
+		glVertex3f(pt2.v[0], pt2.v[1], pt2[2]);
+
+		// point 3
+		glColor3f(0.8, 0.8, 0.8);
+		glNormal3f(cNormalVertex[ind3].v[0], cNormalFace[ind3].v[1], cNormalFace[ind3].v[2]);
+		glVertex3f(pt3.v[0], pt3.v[1], pt3[2]);
+	}
+	glEnd();
+}
+
+void Render_GaussCurv()
+{
+	for (MeshVertexIterator vit(cMesh); !vit.end(); ++vit)
+	{
+		glutSolidSphere(0.0002, 20, 20);
+		Vertex *ver = *vit;
+		int indMax = LocalMaxGC[ver->index()];
+		int indMin = LocalMinGC[ver->index()];
+
+		Vertex *vMax = cMesh->indVertex(indMax);
+		Vertex *vMin = cMesh->indVertex(indMin);
+
+		// render the local max
+		glColor3f(1.0f, 0.0f, 0.0f);
+		glTranslatef(vMax->point().v[0], vMax->point().v[1], vMax->point().v[2]);
+		glutSolidSphere(0.0003, 20, 20);
+
+		// render the local min
+		glColor3f(0.0f, 0.0f, 1.0f);
+		glTranslatef(vMin->point().v[0], vMin->point().v[1], vMin->point().v[2]);
+		glutSolidSphere(0.0002, 20, 20);
+	}
+}
+
+void Render_ShapeEdge()
+{
+	glBegin(GL_LINES);
+	for (MeshEdgeIterator eit(cMesh); !eit.end(); ++eit)
+	{
+		Edge *e = *eit;
+		if (ShapeEdge[e->index()] == 1)
+		{
+			Halfedge *he = e->he(0);
+			Point pt0 = he->source()->point();
+			Point pt1 = he->target()->point();
+			glColor3f(0, 0, 1);
+			glVertex3f(pt0.v[0], pt0.v[1], pt0.v[2]);
+			glVertex3f(pt1.v[0], pt1.v[1], pt1.v[2]);
+		}
+	}
+	glEnd();
+}
+
+void display()
 {
 	// clean the window
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -257,70 +592,53 @@ void Render_Mesh()
 
 	// set the camera position
 	gluLookAt(x_cam, y_cam, z_cam, x_BCenter, y_BCenter, z_BCenter, 0, 1, 0);
-	glTranslatef(x_BCenter, y_BCenter, z_BCenter);
 
 	// Set the T,R and S Matrix.
 	glTranslatef(obj_trans[0], obj_trans[1], 0);
-	glRotatef(obj_angle_x, 1, 0, 0);
-	glRotatef(obj_angle_y, 0, 1, 0);
+
 	glScalef(camera_zoom, camera_zoom, camera_zoom);
 
 	// store the state of this object 
 	glPushMatrix();
 
 	// move the obj to the original point
+	glTranslatef(x_BCenter, y_BCenter, z_BCenter);
+	glRotatef(obj_angle_x, 1, 0, 0);
+	glRotatef(obj_angle_y, 0, 1, 0);
 	glTranslatef(-x_BCenter, -y_BCenter, -z_BCenter);
-	glScalef(scale, scale, scale);
 
-	//Set the color of the object
-
-	//Begin Mesh
-	glBegin(GL_TRIANGLES);
-	for (MeshFaceIterator fit(cMesh); !fit.end(); ++fit)
+	if (keyControl == 'f')
 	{
-		Face * f = *fit;
-		Halfedge *he1 = f->he();
-		Halfedge *he2 = he1->next();
-		Point &pt1 = he1->source()->point();
-		Point &pt2 = he1->target()->point();
-		Point &pt3 = he2->target()->point();
-		glNormal3f(cNormal[f->index()].v[0], cNormal[f->index()].v[1], cNormal[f->index()].v[2]);
-		glColor3f(1, 0, 0);
-		glVertex3f(pt1.v[0], pt1.v[1], pt1[2]);
-		glColor3f(0.9, 0, 0);
-		glVertex3f(pt2.v[0], pt2.v[1], pt2[2]);
-		glColor3f(0.8, 0, 0);
-		glVertex3f(pt3.v[0], pt3.v[1], pt3[2]);
+		Render_MeshF();
 	}
-	glEnd();
+	else if (keyControl == 'v')
+	{
+		Render_MeshV();
+	}
+	else
+	{
+		Render_Mesh();
+	}
+
+	
+	if (keyControl == 'k');
+	{
+		Render_GaussCurv();
+	}
+	
+	if (keyControl == 's')
+	{
+		Render_ShapeEdge();
+	}
 
 	glPopMatrix();
 
-	/*
-	// Original Coordinate System
-	glPushMatrix();
-	glBegin(GL_LINES);
-	// x axis red
-	glColor3f(1, 0, 0);
-	glVertex3f(0, 0, 0);
-	glVertex3f(x_cam, 0, 0);
-	// y axis green
-	glColor3f(0, 1, 0);
-	glVertex3f(0, 0, 0);
-	glVertex3f(0, y_cam, 0);
-	// z axis blue
-	glColor3f(0, 0, 1);
-	glVertex3f(0, 0, 0);
-	glVertex3f(0, 0, z_cam);
-	glEnd();
-	glPopMatrix();
-	*/
 	glutSwapBuffers();
 }
 
 int main(int argc, char** argv)
 {
-	const char ObjFileName[128] = "C:\\Users\\yding18\\Desktop\\E7755\\OBJ Meshes\\bunny.obj";
+	const char ObjFileName[128] = "C:\\Users\\robin\\Desktop\\EE7755\\OBJ Meshes\\david.obj";
 	// read the obj file
 	bool flag = cMesh->readOBJFile(ObjFileName);
 
@@ -343,8 +661,18 @@ int main(int argc, char** argv)
 	z_cam = z_BCenter + 1.5 * BoundingBoxDiagonalAxisLength;
 	cout << "The Camera(" << x_cam << "," << y_cam << "," << y_cam << ")" << endl;
 
-	cout << "Compute the Normal Vector ..." << endl;
+	cout << "Compute the Face Normal Vector ..." << endl;
 	ComputerFaceNormal();
+	cout << "Compute the Vertex Normal Vector ..." << endl;
+	ComputeVertexNormal();
+
+	cout << "Compute the Gaussian Curvature ..." << endl;
+	ComputeGaussianCurv();
+	cout << "Find the local feature ..." << endl;
+	LocalMaxMinGC();
+
+	cout << "Find the shape edge ..." << endl;
+	ComputeShapeEdge();
 	// Set the OpenGL for 3D rendering
 	//Initialize GLUT
 	glutInit(&argc, argv);
@@ -353,13 +681,13 @@ int main(int argc, char** argv)
 	glutInitWindowPosition(100, 100);
 
 	//Create the window
-	//glutCreateWindow(ObjFileName);
-	glutCreateWindow(argv[1]);
+	glutCreateWindow(ObjFileName);
+	//glutCreateWindow(argv[1]);
 
 	initRendering();
 
 	// call the display function. The object will be render.
-	glutDisplayFunc(Render_Mesh);
+	glutDisplayFunc(display);
 
 	// enable the reshape window function.
 	glutReshapeFunc(handleResize);
