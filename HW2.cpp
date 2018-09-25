@@ -158,7 +158,7 @@ void ComputeVertexNormal()
 			// compute the incident angle as weight
 			double a = (p0 - p1).norm();
 			double b = (p2 - p1).norm();
-			double cAngles = acos(((p0-p1)*(p2-p1)) / (a * b));
+			double cAngles = acos(((p0 - p1)*(p2 - p1)) / (a * b));
 			sumAngles += cAngles;
 
 			// select the face normal vector
@@ -168,6 +168,7 @@ void ComputeVertexNormal()
 			cNormalV += pt1;
 		}
 		cNormalV = cNormalV / sumAngles;
+		cNormalV = cNormalV / cNormalV.norm();
 		// add the vertex normal vector
 		cNormalVertex.push_back(cNormalV);
 	}
@@ -198,7 +199,7 @@ void ComputeGaussianCurv()
 			double cAngles = acos(((p0 - p1)*(p2 - p1)) / (a * b));
 			sumAngles += cAngles;
 		}
-		GuassCurv = 2*PI - sumAngles;
+		GuassCurv = 2 * PI - sumAngles;
 		// add the vertex normal vector
 		cGaussCurv.push_back(GuassCurv);
 	}
@@ -270,7 +271,7 @@ void ComputeShapeEdge()
 			}
 			else
 			{
-				ShapeEdge.push_back(0);			
+				ShapeEdge.push_back(0);
 			}
 		}
 	}
@@ -302,6 +303,7 @@ void initRendering()
 {
 	glClearColor(0, 0, 0, 1);
 	keyControl = 0;
+	glShadeModel(GL_FLAT);
 }
 
 //Called when a key is pressed
@@ -421,115 +423,39 @@ void Render_Mesh()
 		int ind1 = he1->source()->index();
 		int ind2 = he1->target()->index();
 		int ind3 = he2->target()->index();
+		Point p1(0, 0, 0);
+		Point p2(0, 0, 0);
+		Point p3(0, 0, 0);
+		if (keyControl == 'f')
+		{
+			p1 = cNormalFace[ind];
+			p2 = cNormalFace[ind];
+			p3 = cNormalFace[ind];
+		}
+		else if(keyControl == 'v')
+		{
+			p1 = cNormalVertex[ind1];
+			p2 = cNormalVertex[ind2];
+			p3 = cNormalVertex[ind3];
+		}
+		else
+		{
+
+		}
 
 		// point 1
 		glColor3f(1, 1, 1);
-		if (keyControl == 'f')
-		{
-			glNormal3f(cNormalFace[ind].v[0], cNormalFace[ind].v[1], cNormalFace[ind].v[2]);
-		}
-		else if (keyControl == 'v')
-		{
-			glNormal3f(cNormalVertex[ind1].v[0], cNormalFace[ind1].v[1], cNormalFace[ind1].v[2]);
-		}
-		else
-		{		}
+		glNormal3f(p1.v[0], p1.v[1], p1.v[2]);
 		glVertex3f(pt1.v[0], pt1.v[1], pt1[2]);
 
 		// point 2
 		glColor3f(0.9, 0.9, 0.9);
-		if (keyControl == 'f')
-		{
-			glNormal3f(cNormalFace[ind].v[0], cNormalFace[ind].v[1], cNormalFace[ind].v[2]);
-		}
-		else if (keyControl == 'v')
-		{
-			glNormal3f(cNormalVertex[ind2].v[0], cNormalFace[ind2].v[1], cNormalFace[ind2].v[2]);
-		}
-		else
-		{		}
+		glNormal3f(p2.v[0], p2.v[1], p2.v[2]);
 		glVertex3f(pt2.v[0], pt2.v[1], pt2[2]);
 
 		// point 3
 		glColor3f(0.8, 0.8, 0.8);
-		if (keyControl == 'f')
-		{
-			glNormal3f(cNormalFace[ind].v[0], cNormalFace[ind].v[1], cNormalFace[ind].v[2]);
-		}
-		else if (keyControl == 'v')
-		{
-			glNormal3f(cNormalVertex[ind3].v[0], cNormalFace[ind3].v[1], cNormalFace[ind3].v[2]);
-		}
-		else
-		{		}
-		glVertex3f(pt3.v[0], pt3.v[1], pt3[2]);
-	}
-	glEnd();
-}
-
-void Render_MeshF()
-{
-	glBegin(GL_TRIANGLES);
-	for (MeshFaceIterator fit(cMesh); !fit.end(); ++fit)
-	{
-		Face * f = *fit;
-		int ind = f->index();
-		Halfedge *he1 = f->he();
-		Halfedge *he2 = he1->next();
-		Point &pt1 = he1->source()->point();
-		Point &pt2 = he1->target()->point();
-		Point &pt3 = he2->target()->point();
-		int ind1 = he1->source()->index();
-		int ind2 = he1->target()->index();
-		int ind3 = he2->target()->index();
-
-		// point 1
-		glColor3f(1, 1, 1);
-		glNormal3f(cNormalFace[ind].v[0], cNormalFace[ind].v[1], cNormalFace[ind].v[2]);
-		glVertex3f(pt1.v[0], pt1.v[1], pt1[2]);
-
-		// point 2
-		glColor3f(0.9, 0.9, 0.9);
-		glNormal3f(cNormalFace[ind].v[0], cNormalFace[ind].v[1], cNormalFace[ind].v[2]);
-		glVertex3f(pt2.v[0], pt2.v[1], pt2[2]);
-
-		// point 3
-		glColor3f(0.8, 0.8, 0.8);
-		glNormal3f(cNormalFace[ind].v[0], cNormalFace[ind].v[1], cNormalFace[ind].v[2]);
-		glVertex3f(pt3.v[0], pt3.v[1], pt3[2]);
-	}
-	glEnd();
-}
-
-void Render_MeshV()
-{
-	glBegin(GL_TRIANGLES);
-	for (MeshFaceIterator fit(cMesh); !fit.end(); ++fit)
-	{
-		Face * f = *fit;
-		int ind = f->index();
-		Halfedge *he1 = f->he();
-		Halfedge *he2 = he1->next();
-		Point &pt1 = he1->source()->point();
-		Point &pt2 = he1->target()->point();
-		Point &pt3 = he2->target()->point();
-		int ind1 = he1->source()->index();
-		int ind2 = he1->target()->index();
-		int ind3 = he2->target()->index();
-
-		// point 1
-		glColor3f(1, 1, 1);
-		glNormal3f(cNormalVertex[ind1].v[0], cNormalFace[ind1].v[1], cNormalFace[ind1].v[2]);
-		glVertex3f(pt1.v[0], pt1.v[1], pt1[2]);
-
-		// point 2
-		glColor3f(0.9, 0.9, 0.9);
-		glNormal3f(cNormalVertex[ind2].v[0], cNormalFace[ind2].v[1], cNormalFace[ind2].v[2]);
-		glVertex3f(pt2.v[0], pt2.v[1], pt2[2]);
-
-		// point 3
-		glColor3f(0.8, 0.8, 0.8);
-		glNormal3f(cNormalVertex[ind3].v[0], cNormalFace[ind3].v[1], cNormalFace[ind3].v[2]);
+		glNormal3f(p3.v[0], p3.v[1], p3.v[2]);
 		glVertex3f(pt3.v[0], pt3.v[1], pt3[2]);
 	}
 	glEnd();
@@ -539,7 +465,6 @@ void Render_GaussCurv()
 {
 	for (MeshVertexIterator vit(cMesh); !vit.end(); ++vit)
 	{
-		glutSolidSphere(0.0002, 20, 20);
 		Vertex *ver = *vit;
 		int indMax = LocalMaxGC[ver->index()];
 		int indMin = LocalMinGC[ver->index()];
@@ -547,15 +472,19 @@ void Render_GaussCurv()
 		Vertex *vMax = cMesh->indVertex(indMax);
 		Vertex *vMin = cMesh->indVertex(indMin);
 
+		glPushMatrix();
 		// render the local max
 		glColor3f(1.0f, 0.0f, 0.0f);
 		glTranslatef(vMax->point().v[0], vMax->point().v[1], vMax->point().v[2]);
-		glutSolidSphere(0.0003, 20, 20);
+		glutSolidSphere(0.01, 20, 20);
+		glPopMatrix();
 
+		glPushMatrix();
 		// render the local min
 		glColor3f(0.0f, 0.0f, 1.0f);
 		glTranslatef(vMin->point().v[0], vMin->point().v[1], vMin->point().v[2]);
-		glutSolidSphere(0.0002, 20, 20);
+		glutSolidSphere(0.005, 20, 20);
+		glPopMatrix();
 	}
 }
 
@@ -583,53 +512,35 @@ void display()
 	// clean the window
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluPerspective(90.0, 1.0, 1.0, 200.0);
-
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-
-	// set the camera position
 	gluLookAt(x_cam, y_cam, z_cam, x_BCenter, y_BCenter, z_BCenter, 0, 1, 0);
 
-	// Set the T,R and S Matrix.
-	glTranslatef(obj_trans[0], obj_trans[1], 0);
-
-	glScalef(camera_zoom, camera_zoom, camera_zoom);
-
-	// store the state of this object 
+	// Draw the mesh
 	glPushMatrix();
-
-	// move the obj to the original point
-	glTranslatef(x_BCenter, y_BCenter, z_BCenter);
+	glTranslatef(+x_BCenter, +y_BCenter, +z_BCenter);
 	glRotatef(obj_angle_x, 1, 0, 0);
 	glRotatef(obj_angle_y, 0, 1, 0);
+	glTranslatef(obj_trans[0], obj_trans[1], 0);
+	glScalef(camera_zoom, camera_zoom, camera_zoom);
 	glTranslatef(-x_BCenter, -y_BCenter, -z_BCenter);
 
-	if (keyControl == 'f')
-	{
-		Render_MeshF();
-	}
-	else if (keyControl == 'v')
-	{
-		Render_MeshV();
-	}
-	else
-	{
-		Render_Mesh();
-	}
+	Render_Mesh();
 
-	
+	Render_GaussCurv(); 
+
+	//Render_ShapeEdge();
+	/*
 	if (keyControl == 'k');
 	{
-		Render_GaussCurv();
+		
 	}
-	
+
 	if (keyControl == 's')
 	{
-		Render_ShapeEdge();
+		
 	}
+	*/
 
 	glPopMatrix();
 
@@ -638,7 +549,7 @@ void display()
 
 int main(int argc, char** argv)
 {
-	const char ObjFileName[128] = "C:\\Users\\robin\\Desktop\\EE7755\\OBJ Meshes\\david.obj";
+	const char ObjFileName[128] = "C:\\Users\\yding18\\Desktop\\EE7755\\OBJ Meshes\\bunny.obj";
 	// read the obj file
 	bool flag = cMesh->readOBJFile(ObjFileName);
 
