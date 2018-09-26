@@ -279,7 +279,10 @@ void ComputeShapeEdge()
 }
 /////////////////////////////////////////////////////////////////////////////////
 // rendering code
-char keyControl;
+char keyControl; // mouse control
+char keyControl1; // normal vector control 
+char keyControl2; // Gassian Curvature
+char keyControl3; // ShapeEdge
 
 int mouseButton;
 
@@ -301,9 +304,49 @@ int mousePositionX0 = 0, mousePositionY0 = 0;
 
 void initRendering()
 {
+	//Define Material Properties for the Objects in the Scene
+	GLfloat mat_specular[] = { 1.0, 1.0, 1.0, 1.0 };
+	GLfloat mat_shininess[] = { 100.0 };
+
+	//The following color components specify the intensity for each type of lights.
+	GLfloat light_ambient[] = { 0.0, 0.0, 0.0, 1.0 };
+	GLfloat light_diffuse[] = { 1.0, 1.0, 1.0, 1.0 };
+	GLfloat light_specular[] = { 1.0, 1.0, 1.0, 1.0 };
+
+	GLfloat light_position[] = { 10.0, 10.0, 10.0, 0.0 };
+
 	glClearColor(0, 0, 0, 1);
 	keyControl = 0;
-	glShadeModel(GL_FLAT);
+	keyControl1 = 0;
+	keyControl2 = 0;
+	keyControl3 = 0;
+	glShadeModel(GL_SMOOTH);
+
+	//Material properties determine how it reflects light
+	//You can specify a material's ambient, diffuse, and specular colors and how shiny it is.
+	//Here only the last two material properties are explicitly specified
+	glMaterialfv(GL_FRONT, GL_SPECULAR, mat_specular);
+	glMaterialfv(GL_FRONT, GL_SHININESS, mat_shininess);
+
+
+	glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+	glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);
+	//glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+
+	//Specify the LIGHT0 position to be "light_position"
+	glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+
+
+	//This enables lighting calculations
+	glEnable(GL_LIGHTING);
+
+	//Remember to enable the light you just defined 
+	glEnable(GL_LIGHT0);
+
+	glEnable(GL_COLOR_MATERIAL);
+
+	glEnable(GL_DEPTH_TEST);
 }
 
 //Called when a key is pressed
@@ -321,16 +364,20 @@ void handleKeypress(unsigned char key, int x, int y)
 		keyControl = 'z';//zoom
 		break;
 	case 'f':
-		keyControl = 'f';//face normal
+		keyControl1 = 'f';//face normal
 		break;
 	case 'v':
-		keyControl = 'v';//vertex normal
+		keyControl1 = 'v';//vertex normal
 		break;
 	case 'k':
-		keyControl = 'k';//Gaussian Curvature
+		keyControl2 = 'k';//Gaussian Curvature
 		break;
 	case 's':
-		keyControl = 's';//Shape Edge
+		keyControl3 = 's';//Shape Edge
+		break;
+	case 'c':
+		keyControl2 = 'c';
+		keyControl3 = 'c';
 		break;
 	case 27: //Escape key
 		exit(0);
@@ -423,25 +470,40 @@ void Render_Mesh()
 		int ind1 = he1->source()->index();
 		int ind2 = he1->target()->index();
 		int ind3 = he2->target()->index();
-		Point p1(0, 0, 0);
-		Point p2(0, 0, 0);
-		Point p3(0, 0, 0);
-		if (keyControl == 'f')
-		{
-			p1 = cNormalFace[ind];
-			p2 = cNormalFace[ind];
-			p3 = cNormalFace[ind];
-		}
-		else if(keyControl == 'v')
-		{
-			p1 = cNormalVertex[ind1];
-			p2 = cNormalVertex[ind2];
-			p3 = cNormalVertex[ind3];
-		}
-		else
-		{
 
-		}
+		// point 1
+		glColor3f(1, 1, 1);
+		glVertex3f(pt1.v[0], pt1.v[1], pt1[2]);
+
+		// point 2
+		glColor3f(1, 1, 1);
+		glVertex3f(pt2.v[0], pt2.v[1], pt2[2]);
+
+		// point 3
+		glColor3f(1, 1, 1);
+		glVertex3f(pt3.v[0], pt3.v[1], pt3[2]);
+	}
+	glEnd();
+}
+
+void Render_Mesh_f()
+{
+	glBegin(GL_TRIANGLES);
+	for (MeshFaceIterator fit(cMesh); !fit.end(); ++fit)
+	{
+		Face * f = *fit;
+		int ind = f->index();
+		Halfedge *he1 = f->he();
+		Halfedge *he2 = he1->next();
+		Point &pt1 = he1->source()->point();
+		Point &pt2 = he1->target()->point();
+		Point &pt3 = he2->target()->point();
+		int ind1 = he1->source()->index();
+		int ind2 = he1->target()->index();
+		int ind3 = he2->target()->index();
+		Point p1 = cNormalFace[ind];
+		Point p2 = cNormalFace[ind];
+		Point p3 = cNormalFace[ind];
 
 		// point 1
 		glColor3f(1, 1, 1);
@@ -449,12 +511,49 @@ void Render_Mesh()
 		glVertex3f(pt1.v[0], pt1.v[1], pt1[2]);
 
 		// point 2
-		glColor3f(0.9, 0.9, 0.9);
+		glColor3f(1, 1, 1);
 		glNormal3f(p2.v[0], p2.v[1], p2.v[2]);
 		glVertex3f(pt2.v[0], pt2.v[1], pt2[2]);
 
 		// point 3
-		glColor3f(0.8, 0.8, 0.8);
+		glColor3f(1, 1, 1);
+		glNormal3f(p3.v[0], p3.v[1], p3.v[2]);
+		glVertex3f(pt3.v[0], pt3.v[1], pt3[2]);
+	}
+	glEnd();
+}
+
+void Render_Mesh_v()
+{
+	glBegin(GL_TRIANGLES);
+	for (MeshFaceIterator fit(cMesh); !fit.end(); ++fit)
+	{
+		Face * f = *fit;
+		int ind = f->index();
+		Halfedge *he1 = f->he();
+		Halfedge *he2 = he1->next();
+		Point &pt1 = he1->source()->point();
+		Point &pt2 = he1->target()->point();
+		Point &pt3 = he2->target()->point();
+		int ind1 = he1->source()->index();
+		int ind2 = he1->target()->index();
+		int ind3 = he2->target()->index();
+		Point p1 = cNormalVertex[ind1];
+		Point p2 = cNormalVertex[ind2];
+		Point p3 = cNormalVertex[ind3];
+
+		// point 1
+		glColor3f(1, 1, 1);
+		glNormal3f(p1.v[0], p1.v[1], p1.v[2]);
+		glVertex3f(pt1.v[0], pt1.v[1], pt1[2]);
+
+		// point 2
+		glColor3f(1, 1, 1);
+		glNormal3f(p2.v[0], p2.v[1], p2.v[2]);
+		glVertex3f(pt2.v[0], pt2.v[1], pt2[2]);
+
+		// point 3
+		glColor3f(1, 1, 1);
 		glNormal3f(p3.v[0], p3.v[1], p3.v[2]);
 		glVertex3f(pt3.v[0], pt3.v[1], pt3[2]);
 	}
@@ -476,14 +575,14 @@ void Render_GaussCurv()
 		// render the local max
 		glColor3f(1.0f, 0.0f, 0.0f);
 		glTranslatef(vMax->point().v[0], vMax->point().v[1], vMax->point().v[2]);
-		glutSolidSphere(0.01, 20, 20);
+		glutSolidSphere(0.005, 15, 15);
 		glPopMatrix();
 
 		glPushMatrix();
 		// render the local min
 		glColor3f(0.0f, 0.0f, 1.0f);
 		glTranslatef(vMin->point().v[0], vMin->point().v[1], vMin->point().v[2]);
-		glutSolidSphere(0.005, 20, 20);
+		glutSolidSphere(0.005, 15, 15);
 		glPopMatrix();
 	}
 }
@@ -524,24 +623,29 @@ void display()
 	glTranslatef(obj_trans[0], obj_trans[1], 0);
 	glScalef(camera_zoom, camera_zoom, camera_zoom);
 	glTranslatef(-x_BCenter, -y_BCenter, -z_BCenter);
-
-	Render_Mesh();
-
-	Render_GaussCurv(); 
-
-	//Render_ShapeEdge();
-	/*
-	if (keyControl == 'k');
+	if (keyControl1 == 'f')
 	{
-		
+		Render_Mesh_f();
 	}
-
-	if (keyControl == 's')
+	else if (keyControl1 == 'v')
 	{
-		
+		Render_Mesh_v();
 	}
-	*/
-
+	else
+	{
+		Render_Mesh();
+	}
+	
+	if (keyControl2 == 'k')
+	{
+		Render_GaussCurv();
+	}
+		
+	if (keyControl3 == 's')
+	{
+		Render_ShapeEdge();
+	}
+	
 	glPopMatrix();
 
 	glutSwapBuffers();
@@ -549,7 +653,7 @@ void display()
 
 int main(int argc, char** argv)
 {
-	const char ObjFileName[128] = "C:\\Users\\yding18\\Desktop\\EE7755\\OBJ Meshes\\bunny.obj";
+	const char ObjFileName[128] = "C:\\Users\\robin\\Desktop\\EE7755\\OBJ Meshes\\david.obj";
 	// read the obj file
 	bool flag = cMesh->readOBJFile(ObjFileName);
 
