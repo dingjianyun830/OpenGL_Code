@@ -154,10 +154,17 @@ void ComputeVertexNormal()
 
 void ComputeGaussianCurv()
 {
+	int count = 0;
 	for (MeshVertexIterator vit(cMesh); !vit.end(); ++vit)
 	{
 		Vertex *ver = *vit;
-		//cout<<ver->index()<<endl;
+		if (ver->boundary())
+		{
+			//cout << ver->index() << endl;
+			count++;
+			cGaussCurv.push_back(0);
+			continue;
+		}
 		double GuassCurv = 0;
 		double sumAngles = 0;
 		for (VertexOutHalfedgeIterator vheit(ver); !vheit.end(); ++vheit)
@@ -175,12 +182,14 @@ void ComputeGaussianCurv()
 			double a = (p0 - p1).norm();
 			double b = (p2 - p1).norm();
 			double cAngles = acos(((p0 - p1)*(p2 - p1)) / (a * b));
-			sumAngles += cAngles;
+			sumAngles += cAngles;		
 		}
 		GuassCurv = 2 * PI - sumAngles;
 		// add the vertex normal vector
 		cGaussCurv.push_back(GuassCurv);
 	}
+
+	cout << "the number of the boundary : " << count << endl;
 }
 
 // find the local max and min Gaussian Curvature in 2-Ring
@@ -191,12 +200,19 @@ void LocalMaxMinGC()
 		Vertex *ver1 = *vit;
 		int iMax = ver1->index();
 		int iMin = ver1->index();
-		double vMax = cGaussCurv[iMax];
-		double vMin = cGaussCurv[iMin];
-		//cout << cGaussCurv[iMax] << endl;
+		double vMax = 0;
+		double vMin = 2*PI;
+		if (ver1->boundary())
+		{
+			continue;
+		}
 		for (VertexVertexIterator vvit(ver1); !vvit.end(); ++vvit)
 		{
 			Vertex *ver2 = *vvit;
+			if (ver2->boundary())
+			{
+				continue;
+			}
 			//cout << "-------------" << ver2->index() << "--------" << endl;
 			for (VertexVertexIterator vvit2(ver2); !vvit2.end(); ++vvit2)
 			{
@@ -227,7 +243,6 @@ void LocalMaxMinGC()
 		{
 			LocalMinGC.push_back(ver1->index());
 		}
-		
 	}
 }
 
@@ -599,7 +614,7 @@ void Render_GaussCurv()
 		// render the local max
 		glColor3f(1.0f, 0.0f, 0.0f);
 		glTranslatef(vMax->point().v[0], vMax->point().v[1], vMax->point().v[2]);
-		glutSolidSphere(0.05, 15, 15);
+		glutSolidSphere(0.01, 15, 15);
 		glPopMatrix();
 	}
 
@@ -610,7 +625,7 @@ void Render_GaussCurv()
 		// render the local min
 		glColor3f(0.0f, 0.0f, 1.0f);
 		glTranslatef(vMin->point().v[0], vMin->point().v[1], vMin->point().v[2]);
-		glutSolidSphere(0.05, 15, 15);
+		glutSolidSphere(0.01, 15, 15);
 		glPopMatrix();
 	}
 }
@@ -666,17 +681,17 @@ void display()
 	{
 		Render_Mesh();
 	}
-	
+
 	if (keyControl2 == 'k')// display the local GC
 	{
 		Render_GaussCurv();
 	}
-		
+
 	if (keyControl3 == 's')// display the shape edge
 	{
 		Render_ShapeEdge();
 	}
-	
+
 	glPopMatrix();
 
 	glutSwapBuffers();
@@ -684,7 +699,7 @@ void display()
 
 int main(int argc, char** argv)
 {
-	const char ObjFileName[128] = "C:\\Users\\robin\\Desktop\\EE7755\\CubeAndFandisk\\cube.obj";
+	const char ObjFileName[128] = "C:\\Users\\yding18\\Desktop\\EE7755\\OBJ Meshes\\horse.obj";
 	// read the obj file
 	bool flag = cMesh->readOBJFile(ObjFileName);
 
@@ -715,7 +730,7 @@ int main(int argc, char** argv)
 	cout << "Compute the Gaussian Curvature ..." << endl;
 	ComputeGaussianCurv();
 	cout << "Find the local feature ..." << endl;
-	LocalMaxMinGC_1R();
+	LocalMaxMinGC();
 
 	cout << "Find the shape edge ..." << endl;
 	ComputeShapeEdge();
