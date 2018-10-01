@@ -90,34 +90,6 @@ bool ComputeBoundingBox()
 	return 1;
 }
 
-double ComputeFaceArea(Face * f)
-{
-	Halfedge * he1 = f->he(); // one halfedge
-	Halfedge * he2 = he1->next(); // its next halfedge inside this face
-	Point & pt1 = he1->source()->point();
-	Point & pt2 = he1->target()->point();
-	Point & pt3 = he2->target()->point();
-	Point cprod = (pt2 - pt1) ^ (pt3 - pt1);
-	return cprod.norm() / 2.0;
-}
-
-void ComputeFaceCornerAngles(Face * f, double cAngles[3])
-{
-	Halfedge * hes[3];
-	hes[0] = f->he();
-	hes[1] = hes[0]->next();
-	hes[2] = hes[0]->prev();
-	Point & p0 = hes[0]->target()->point();
-	Point & p1 = hes[1]->target()->point();
-	Point & p2 = hes[2]->target()->point();
-	double l20 = (p0 - p2).norm();
-	double l01 = (p1 - p0).norm();
-	double l12 = (p2 - p1).norm();
-	cAngles[0] = acos((l20*l20 + l01*l01 - l12*l12) / (2 * l20*l01));
-	cAngles[1] = acos((l01*l01 + l12*l12 - l20*l20) / (2 * l01*l12));
-	cAngles[2] = acos((l12*l12 + l20*l20 - l01*l01) / (2 * l12*l20));
-}
-
 void ComputerFaceNormal()
 {
 	for (MeshFaceIterator fit(cMesh); !fit.end(); ++fit)
@@ -149,6 +121,12 @@ void ComputeVertexNormal()
 			// select the two halfedges
 			Halfedge *he = *vheit;
 			Halfedge *he1 = he->prev();
+
+			//cout << ver->index()<<endl;
+			//cout << he->source()->index() << endl;
+			//cout << he->target()->index() << endl;
+			//cout << he1->source()->index() << endl;
+			//cout << he1->target()->index() << endl;
 
 			// select 3 points, p1 is the current vertex
 			Point & p0 = he1->source()->point();
@@ -186,10 +164,10 @@ void ComputeGaussianCurv()
 		{
 			// select the two halfedges
 			Halfedge *he = *vheit;
-			Halfedge *he1 = he->prev();
+			Halfedge *he1 = he->ccw_rotate_about_source();
 
 			// select 3 points, p1 is the current vertex
-			Point & p0 = he1->source()->point();
+			Point & p0 = he1->target()->point();
 			Point & p1 = he->source()->point();
 			Point & p2 = he->target()->point();
 
@@ -205,6 +183,7 @@ void ComputeGaussianCurv()
 	}
 }
 
+// find the local max and min Gaussian Curvature in 2-Ring
 void LocalMaxMinGC()
 {
 	for (MeshVertexIterator vit(cMesh); !vit.end(); ++vit)
@@ -214,35 +193,84 @@ void LocalMaxMinGC()
 		int iMin = ver1->index();
 		double vMax = cGaussCurv[iMax];
 		double vMin = cGaussCurv[iMin];
-		vector<int> Index;
+		//cout << cGaussCurv[iMax] << endl;
 		for (VertexVertexIterator vvit(ver1); !vvit.end(); ++vvit)
 		{
 			Vertex *ver2 = *vvit;
+			//cout << "-------------" << ver2->index() << "--------" << endl;
 			for (VertexVertexIterator vvit2(ver2); !vvit2.end(); ++vvit2)
 			{
 				Vertex *ver = *vvit2;
-				Index.push_back(ver->index());
+				int ind = ver->index();
+				if (vMax < cGaussCurv[ind])
+				{
+					vMax = cGaussCurv[ind];
+					iMax = ind;
+				}
+
+				if (vMin > cGaussCurv[ind])
+				{
+					vMin = cGaussCurv[ind];
+					iMin = ind;
+				}
 			}
 		}
 
-		// find the local Max and Min
-		for (int i = 0; i < Index.size(); i++)
+		// local max
+		if (iMax == ver1->index())
 		{
-			if (cGaussCurv[Index[i]] >= vMax)
+			LocalMaxGC.push_back(ver1->index());
+		}
+
+		// local min
+		if (iMin == ver1->index())
+		{
+			LocalMinGC.push_back(ver1->index());
+		}
+		
+	}
+}
+
+// find the local max and min Gaussian Curvature in 1-Ring
+void LocalMaxMinGC_1R()
+{
+	for (MeshVertexIterator vit(cMesh); !vit.end(); ++vit)
+	{
+		Vertex *ver1 = *vit;
+		int iMax = ver1->index();
+		int iMin = ver1->index();
+		double vMax = cGaussCurv[iMax];
+		double vMin = cGaussCurv[iMin];
+		//cout << cGaussCurv[iMax] << endl;
+		for (VertexVertexIterator vvit(ver1); !vvit.end(); ++vvit)
+		{
+			Vertex *ver2 = *vvit;
+			int ind = ver2->index();
+			if (vMax < cGaussCurv[ind])
 			{
-				vMax = cGaussCurv[Index[i]];
-				iMax = Index[i];
+				vMax = cGaussCurv[ind];
+				iMax = ind;
 			}
 
-			if (cGaussCurv[Index[i]] <= vMin)
+			if (vMin > cGaussCurv[ind])
 			{
-				vMin = cGaussCurv[Index[i]];
-				iMin = Index[i];
+				vMin = cGaussCurv[ind];
+				iMin = ind;
 			}
 		}
 
-		LocalMaxGC.push_back(iMax);
-		LocalMinGC.push_back(iMin);
+		// local max
+		if (iMax == ver1->index())
+		{
+			LocalMaxGC.push_back(ver1->index());
+		}
+
+		// local min
+		if (iMin == ver1->index())
+		{
+			LocalMinGC.push_back(ver1->index());
+		}
+
 	}
 }
 
@@ -260,14 +288,16 @@ void ComputeShapeEdge()
 		{
 			Halfedge *he0 = e->he(0);
 			Halfedge *he1 = e->he(1);
+			//Halfedge *he2 = e->twin(he0);
 			//cout << he0->face()->index() << endl;
 			//cout << he1->face()->index() << endl;
+			//cout << he2->face()->index() << endl;
 			Point & pt0 = cNormalFace[he0->face()->index()];
 			Point & pt1 = cNormalFace[he1->face()->index()];
 			if (0.5 > pt0*pt1)
 			{
 				ShapeEdge.push_back(1);
-				count++;
+				//count++;
 			}
 			else
 			{
@@ -275,7 +305,7 @@ void ComputeShapeEdge()
 			}
 		}
 	}
-	cout << count << endl;
+	//cout << count << endl;
 }
 /////////////////////////////////////////////////////////////////////////////////
 // rendering code
@@ -562,33 +592,32 @@ void Render_Mesh_v()
 
 void Render_GaussCurv()
 {
-	for (MeshVertexIterator vit(cMesh); !vit.end(); ++vit)
+	for (int i = 0; i < LocalMaxGC.size(); i++)
 	{
-		Vertex *ver = *vit;
-		int indMax = LocalMaxGC[ver->index()];
-		int indMin = LocalMinGC[ver->index()];
-
-		Vertex *vMax = cMesh->indVertex(indMax);
-		Vertex *vMin = cMesh->indVertex(indMin);
-
+		Vertex *vMax = cMesh->indVertex(LocalMaxGC[i]);
 		glPushMatrix();
 		// render the local max
 		glColor3f(1.0f, 0.0f, 0.0f);
 		glTranslatef(vMax->point().v[0], vMax->point().v[1], vMax->point().v[2]);
-		glutSolidSphere(0.005, 15, 15);
+		glutSolidSphere(0.05, 15, 15);
 		glPopMatrix();
+	}
 
+	for (int i = 0; i < LocalMinGC.size(); i++)
+	{
+		Vertex *vMin = cMesh->indVertex(LocalMinGC[i]);
 		glPushMatrix();
 		// render the local min
 		glColor3f(0.0f, 0.0f, 1.0f);
 		glTranslatef(vMin->point().v[0], vMin->point().v[1], vMin->point().v[2]);
-		glutSolidSphere(0.005, 15, 15);
+		glutSolidSphere(0.05, 15, 15);
 		glPopMatrix();
 	}
 }
 
 void Render_ShapeEdge()
 {
+	glLineWidth(2.0);
 	glBegin(GL_LINES);
 	for (MeshEdgeIterator eit(cMesh); !eit.end(); ++eit)
 	{
@@ -623,11 +652,13 @@ void display()
 	glTranslatef(obj_trans[0], obj_trans[1], 0);
 	glScalef(camera_zoom, camera_zoom, camera_zoom);
 	glTranslatef(-x_BCenter, -y_BCenter, -z_BCenter);
-	if (keyControl1 == 'f')
+
+	// display the mesh with 3 mode
+	if (keyControl1 == 'f')// face normal
 	{
 		Render_Mesh_f();
 	}
-	else if (keyControl1 == 'v')
+	else if (keyControl1 == 'v')// vertex normal
 	{
 		Render_Mesh_v();
 	}
@@ -636,12 +667,12 @@ void display()
 		Render_Mesh();
 	}
 	
-	if (keyControl2 == 'k')
+	if (keyControl2 == 'k')// display the local GC
 	{
 		Render_GaussCurv();
 	}
 		
-	if (keyControl3 == 's')
+	if (keyControl3 == 's')// display the shape edge
 	{
 		Render_ShapeEdge();
 	}
@@ -653,7 +684,7 @@ void display()
 
 int main(int argc, char** argv)
 {
-	const char ObjFileName[128] = "C:\\Users\\robin\\Desktop\\EE7755\\OBJ Meshes\\david.obj";
+	const char ObjFileName[128] = "C:\\Users\\robin\\Desktop\\EE7755\\CubeAndFandisk\\cube.obj";
 	// read the obj file
 	bool flag = cMesh->readOBJFile(ObjFileName);
 
@@ -684,7 +715,7 @@ int main(int argc, char** argv)
 	cout << "Compute the Gaussian Curvature ..." << endl;
 	ComputeGaussianCurv();
 	cout << "Find the local feature ..." << endl;
-	LocalMaxMinGC();
+	LocalMaxMinGC_1R();
 
 	cout << "Find the shape edge ..." << endl;
 	ComputeShapeEdge();
